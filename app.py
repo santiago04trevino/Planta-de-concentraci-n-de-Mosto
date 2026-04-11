@@ -25,7 +25,7 @@ st.sidebar.markdown("Ajusta las condiciones de alimentación al sistema:")
 
 flujo_agua = st.sidebar.slider("Flujo de Agua (kmol/h)", 10.0, 100.0, 43.2, step=0.1)
 flujo_etanol = st.sidebar.slider("Flujo de Etanol (kmol/h)", 1.0, 20.0, 4.9, step=0.1)
-# Temperatura base corregida para cálculos de transferencia de masa
+# Temperatura base corregida para cálculos de transferencia de masa (293 K)
 temp_mosto = st.sidebar.slider("Temperatura del Mosto (K)", 280.0, 320.0, 293.0, step=1.0)
 
 # ==========================================
