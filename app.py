@@ -21,7 +21,6 @@ st.markdown("Plataforma web para el análisis termodinámico, balances y evaluac
 # ==========================================
 # 1. SIDEBAR: PARÁMETROS OPERATIVOS Y COSTOS
 # ==========================================
-# Colocamos el botón en la parte superior para fácil acceso
 ejecutar_btn = st.sidebar.button("▶ Ejecutar Simulación", type="primary", use_container_width=True)
 st.sidebar.divider()
 
@@ -54,7 +53,7 @@ def mostrar_pdf(ruta_archivo):
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
     else:
-        st.warning(f"No se encontró el archivo: {ruta_archivo}. Asegúrate de subirlo a tu repositorio de GitHub.")
+        st.warning(f"No se encontró el archivo: {ruta_archivo}. Asegúrate de subirlo a la raíz de tu repositorio.")
 
 # ==========================================
 # 3. MOTOR DE SIMULACIÓN Y ECONOMÍA
@@ -76,7 +75,10 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
     V100 = bst.IsenthalpicValve("V-100", ins=W220-0, outs="Mezcla-Bifásica", P=p_v100_bar*100000)
     
     V1 = bst.Flash("V-1", ins=V100-0, outs=("Vapor Caliente","Vinazas"), P=p_v100_bar*100000, Q=0)
+    
+    # Condensador (enfriamiento riguroso a 293 K por requerimiento de transferencia de masa)
     W310 = bst.HXutility("W-310", ins=V1-0, outs="Producto Final", T=293.0)
+    
     P200 = bst.Pump("P-200", ins=V1-1, outs=vinazas_retorno, P=3*101325)
 
     eth_sys = bst.System("planta_etanol", path=(P100,W210,W220,V100,V1,W310,P200))
@@ -164,14 +166,15 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
 # ==========================================
 # 4. INTERFAZ Y RENDERIZADO
 # ==========================================
-if st.sidebar.button("▶ Ejecutar Simulación", type="primary", use_container_width=True):
-    st.session_state['simulacion_ejecutada'] = True
-    df_materia, df_energia, kpis = ejecutar_simulacion(
-        flujo_agua, flujo_etanol, temp_mosto_c, temp_w220_c, presion_v100_bar
-    )
-    st.session_state['df_mat'] = df_materia
-    st.session_state['df_en'] = df_energia
-    st.session_state['kpis'] = kpis
+if ejecutar_btn:
+    with st.spinner("Resolviendo balances termodinámicos y financieros..."):
+        st.session_state['simulacion_ejecutada'] = True
+        df_materia, df_energia, kpis = ejecutar_simulacion(
+            flujo_agua, flujo_etanol, temp_mosto_c, temp_w220_c, presion_v100_bar
+        )
+        st.session_state['df_mat'] = df_materia
+        st.session_state['df_en'] = df_energia
+        st.session_state['kpis'] = kpis
 
 if st.session_state.get('simulacion_ejecutada'):
     kpis = st.session_state['kpis']
@@ -227,22 +230,18 @@ if st.session_state.get('simulacion_ejecutada'):
     if modo_tutor:
         st.markdown("Chatea con el asistente técnico sobre los resultados termodinámicos y financieros de tu simulación.")
         
-        # Inicializar historial de chat
         if "messages" not in st.session_state:
             st.session_state.messages = []
 
-        # Mostrar historial
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-        # Input natural del usuario
         if prompt_usuario := st.chat_input("Ej: ¿Por qué el ROI es tan bajo si aumento la presión en V-100?"):
             st.session_state.messages.append({"role": "user", "content": prompt_usuario})
             with st.chat_message("user"):
                 st.markdown(prompt_usuario)
 
-            # Contexto del sistema inyectado en la API
             contexto_simulacion = f"""
             Actúa como un tutor de ingeniería química senior. El alumno está simulando una planta de separación de etanol.
             Datos actuales de la simulación:
@@ -251,7 +250,9 @@ if st.session_state.get('simulacion_ejecutada'):
             - Pureza del producto: {kpis['prod'].get('Comp', 0):.1f} %
             - NPV: ${kpis['npv']:,.2f} USD
             - ROI: {kpis['roi']:.1f} %
+            
             Pregunta del alumno: {prompt_usuario}
+            
             Responde de manera directa, técnica y basándote en la termodinámica o ingeniería de costos.
             """
 
@@ -269,3 +270,6 @@ if st.session_state.get('simulacion_ejecutada'):
             except Exception as e:
                 st.error("Fallo de conexión con Gemini.")
                 st.code(str(e))
+else:
+    # Mensaje de espera en estado inicial
+    st.info("👈 Ajusta los parámetros operativos y de costos en el panel lateral, luego presiona **Ejecutar Simulación** para visualizar los balances y la evaluación económica.")
