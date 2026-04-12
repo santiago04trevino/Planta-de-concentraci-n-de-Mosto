@@ -44,13 +44,26 @@ precio_agua = st.sidebar.slider("Precio Agua Enfriamiento ($/ton)", 0.1, 5.0, 0.
 # 2. FUNCIONES AUXILIARES (PDF VIEWER)
 # ==========================================
 def mostrar_pdf(ruta_archivo):
-    if os.path.exists(ruta_archivo):
+    """Función auxiliar para leer y renderizar un PDF en Streamlit mediante base64 y etiqueta embed"""
+    try:
         with open(ruta_archivo, "rb") as f:
-            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
+            pdf_data = f.read()
+            base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
+        
+        # 1. Intentar renderizar con <embed> en lugar de <iframe> para evitar el bloqueo de Chrome
+        pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf">'
         st.markdown(pdf_display, unsafe_allow_html=True)
-    else:
-        st.warning(f"No se encontró el archivo: {ruta_archivo}. Asegúrate de subirlo a tu repositorio de GitHub.")
+        
+        # 2. Respaldo de seguridad: Botón de descarga nativo
+        st.download_button(
+            label="⬇️ Descargar PDF si no se visualiza correctamente",
+            data=pdf_data,
+            file_name=ruta_archivo,
+            mime="application/pdf"
+        )
+        
+    except FileNotFoundError:
+        st.warning(f"⚠️ No se encontró el archivo: `{ruta_archivo}`. Verifica que esté en el repositorio.")
 
 # ==========================================
 # 3. MOTOR DE SIMULACIÓN Y ECONOMÍA
