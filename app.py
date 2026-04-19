@@ -9,7 +9,7 @@ import google.generativeai as genai
 import fitz  # PyMuPDF: Necesario para renderizar PDFs evadiendo el bloqueo del navegador
 
 # ==========================================
-# 0. CONFIGURACIÓN DE LA PÁGINA (Sin cambios)
+# 0. CONFIGURACIÓN DE LA PÁGINA
 # ==========================================
 st.set_page_config(
     page_title="Simulador BioSTEAM - Separación de Etanol", 
@@ -118,7 +118,7 @@ st.markdown('<h1 class="title-text">⚙️ Simulación Interactiva: <span>Separa
 st.markdown('<p class="subtitle-text">Plataforma web para el análisis termodinámico, balances y evaluación económica del proceso.</p>', unsafe_allow_html=True)
 
 # ==========================================
-# 1. SIDEBAR: PARÁMETROS OPERATIVOS Y COSTOS (Sin cambios en lógica)
+# 1. SIDEBAR: PARÁMETROS OPERATIVOS Y COSTOS
 # ==========================================
 # Usamos Markdown para subheaders en sidebar también
 st.sidebar.markdown('<h3 class="section-header">⚙️ Ejecución</h3>', unsafe_allow_html=True)
@@ -145,21 +145,31 @@ precio_vapor = st.sidebar.slider("Precio Vapor ($/ton)", 10.0, 50.0, 20.0)
 precio_agua = st.sidebar.slider("Precio Agua Enfriamiento ($/ton)", 0.1, 5.0, 0.5)
 
 # ==========================================
-# 2. FUNCIONES AUXILIARES (Sin cambios)
+# 2. FUNCIONES AUXILIARES (PDF VIEWER)
 # ==========================================
 def mostrar_pdf(ruta_archivo):
     """Función auxiliar para rasterizar un PDF a imagen usando PyMuPDF y asegurar su visualización"""
     try:
         if os.path.exists(ruta_archivo):
+            # Abrir el documento PDF
             doc = fitz.open(ruta_archivo)
+            
+            # Renderizar cada página del PDF como una imagen
             for page_num in range(len(doc)):
                 page = doc.load_page(page_num)
+                
+                # Matriz para aplicar zoom y mejorar la resolución
                 mat = fitz.Matrix(2, 2) 
                 pix = page.get_pixmap(matrix=mat)
+                
+                # Convertir los datos de la imagen a formato apto para Streamlit
                 img_bytes = pix.tobytes("png")
                 st.image(img_bytes, caption=f"Página {page_num + 1} - Renderizado desde Plant 3D", use_container_width=True)
+            
+            # Mantener el botón de descarga nativo como contingencia
             with open(ruta_archivo, "rb") as f:
                 pdf_data = f.read()
+                
             st.download_button(
                 label="⬇️ Descargar archivo original en PDF",
                 data=pdf_data,
@@ -173,28 +183,35 @@ def mostrar_pdf(ruta_archivo):
         st.error(f"❌ Error interno al renderizar el documento: {e}")
 
 # ==========================================
-# 3. MOTOR DE SIMULACIÓN (Sin cambios)
+# 3. MOTOR DE SIMULACIÓN Y ECONOMÍA
 # ==========================================
 def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
     bst.main_flowsheet.clear()
     chemicals = tmo.Chemicals(["Water", "Ethanol"])
     bst.settings.set_thermo(chemicals)
 
+    # Corrientes (Conversión de °C a K, y bar a Pa)
     mosto = bst.Stream("1-MOSTO", Water=f_agua, Ethanol=f_etanol, units="kmol/h", T=t_mosto_c+273.15, P=101325)
     vinazas_retorno = bst.Stream("Vinazas-Retorno", Water=43.335, Ethanol=0, units="kmol/h", T=90+273.15, P=300000)
 
+    # Equipos
     P100 = bst.Pump("P-100", ins=mosto, P=4*101325)
     W210 = bst.HXprocess("W-210", ins=(P100-0, vinazas_retorno), outs=("3-MOSTO-PRE","DRENAJE"), phase0="l", phase1="l")
     W210.outs[0].T = 85+273.15
     W220 = bst.HXutility("W-220", ins=W210-0, outs="Mezcla", T=t_w220_c+273.15)
     V100 = bst.IsenthalpicValve("V-100", ins=W220-0, outs="Mezcla-Bifásica", P=p_v100_bar*100000)
+    
     V1 = bst.Flash("V-1", ins=V100-0, outs=("Vapor Caliente","Vinazas"), P=p_v100_bar*100000, Q=0)
+    
+    # Condensador (enfriamiento riguroso a 293 K por requerimiento de transferencia de masa)
     W310 = bst.HXutility("W-310", ins=V1-0, outs="Producto Final", T=293.0)
+    
     P200 = bst.Pump("P-200", ins=V1-1, outs=vinazas_retorno, P=3*101325)
 
     eth_sys = bst.System("planta_etanol", path=(P100,W210,W220,V100,V1,W310,P200))
     eth_sys.simulate()
 
+    # Procesamiento Materia
     datos_mat = []
     prod_data = {}
     for s in eth_sys.streams:
@@ -202,8 +219,10 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
             pct_etanol = (s.imass['Ethanol']/s.F_mass)*100
             if s.ID == "Producto Final":
                 prod_data = {
-                    "P": s.P / 100000, "T": s.T - 273.15,
-                    "Flujo": s.F_mass, "Comp": pct_etanol
+                    "P": s.P / 100000, # bar
+                    "T": s.T - 273.15, # °C
+                    "Flujo": s.F_mass, # kg/h
+                    "Comp": pct_etanol # %
                 }
             datos_mat.append({
                 "ID Corriente": s.ID, "Temp (°C)": f"{s.T-273.15:.2f}",
@@ -211,42 +230,68 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
                 "% Etanol": f"{pct_etanol:.1f}%", "% Agua": f"{(s.imass['Water']/s.F_mass)*100:.1f}%"
             })
     
+    # Procesamiento Energía y Utilidades
     datos_en = []
     calor_kw = enfriamiento_kw = potencia_kw = 0.0
+    
     for u in eth_sys.units:
         q_kw = (u.duty / 3600) if (hasattr(u, "duty") and u.duty) else 0.0
         p_kw = u.power_utility.rate if (hasattr(u, "power_utility") and u.power_utility) else 0.0
+        
         tipo_srv = "-"
         if isinstance(u, bst.HXprocess): tipo_srv = "Recuperación"
         elif isinstance(u, bst.Flash): tipo_srv = "Adiabático"
-        elif q_kw > 0.01: tipo_srv = "Vapor"; calor_kw += q_kw
-        elif q_kw < -0.01: tipo_srv = "Agua Enfriamiento"; enfriamiento_kw += abs(q_kw)
+        elif q_kw > 0.01: 
+            tipo_srv = "Vapor"
+            calor_kw += q_kw
+        elif q_kw < -0.01: 
+            tipo_srv = "Agua Enfriamiento"
+            enfriamiento_kw += abs(q_kw)
+            
         potencia_kw += p_kw
+
         if abs(q_kw) > 0.01: datos_en.append({"ID Equipo": u.ID, "Función": tipo_srv, "Energía Térmica (kW)": f"{q_kw:.2f}"})
         if p_kw > 0.01: datos_en.append({"ID Equipo": u.ID, "Función": "Motor Eléctrico", "Energía Eléctrica (kW)": f"{p_kw:.2f}"})
 
-    horas_año = 8000; ton_to_kg = 1000
+    # --- EVALUACIÓN ECONÓMICA BÁSICA (Clase V) ---
+    horas_año = 8000
+    ton_to_kg = 1000
+    
+    # OPEX Anual (Materia prima + Servicios)
     costo_mosto_anual = (mosto.F_mass / ton_to_kg) * precio_mosto * horas_año
     costo_vapor_anual = (calor_kw * 3600 / 2257 / ton_to_kg) * precio_vapor * horas_año # Asumiendo dHvap = 2257 kJ/kg
     costo_agua_anual = (enfriamiento_kw * 3600 / 41.8 / ton_to_kg) * precio_agua * horas_año # Asumiendo dT = 10C
     costo_luz_anual = potencia_kw * precio_luz * horas_año
     opex_total = costo_mosto_anual + costo_vapor_anual + costo_agua_anual + costo_luz_anual
+    
     costo_real_produccion = opex_total / (prod_data["Flujo"] * horas_año / ton_to_kg) if prod_data["Flujo"] > 0 else 0
+    
+    # Ingresos y Métricas Financieras
     ingresos = (prod_data["Flujo"] / ton_to_kg) * precio_etanol * horas_año
     flujo_caja = ingresos - opex_total
-    capex_estimado = 1500000 # Asumimos un CAPEX estimado fijo de $1,500,000 USD
+    
+    # Asumimos un CAPEX estimado fijo de $1,500,000 USD para el cálculo de viabilidad
+    capex_estimado = 1500000 
     roi = (flujo_caja / capex_estimado) * 100 if capex_estimado > 0 else 0
     payback = capex_estimado / flujo_caja if flujo_caja > 0 else 0
-    tasa = 0.10; npv = -capex_estimado + sum([flujo_caja / ((1 + tasa)**t) for t in range(1, 11)])
+    
+    # NPV a 10 años con tasa de descuento del 10%
+    tasa = 0.10
+    npv = -capex_estimado + sum([flujo_caja / ((1 + tasa)**t) for t in range(1, 11)])
 
     kpis = {
-        "prod": prod_data, "costo_prod": costo_real_produccion, "precio_venta": precio_etanol,
-        "npv": npv, "payback": payback, "roi": roi
+        "prod": prod_data,
+        "costo_prod": costo_real_produccion,
+        "precio_venta": precio_etanol,
+        "npv": npv,
+        "payback": payback,
+        "roi": roi
     }
+
     return pd.DataFrame(datos_mat), pd.DataFrame(datos_en), kpis
 
 # ==========================================
-# 4. INTERFAZ Y RENDERIZADO (Sin cambios)
+# 4. INTERFAZ Y RENDERIZADO
 # ==========================================
 if ejecutar_btn:
     with st.spinner("Resolviendo balances termodinámicos y financieros..."):
@@ -261,7 +306,7 @@ if ejecutar_btn:
 if st.session_state.get('simulacion_ejecutada'):
     kpis = st.session_state['kpis']
     
-    # --- SECCIÓN A: MÉTRICAS CON GRADIENTE ---
+    # --- SECCIÓN A: MÉTRICAS DEL PRODUCTO FINAL ---
     st.markdown('<h3 class="section-header">📦 Propiedades del Producto Final</h3>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Presión", f"{kpis['prod'].get('P', 0):.2f} bar")
@@ -269,18 +314,25 @@ if st.session_state.get('simulacion_ejecutada'):
     c3.metric("Flujo Másico", f"{kpis['prod'].get('Flujo', 0):.1f} kg/h")
     c4.metric("Composición Etanol", f"{kpis['prod'].get('Comp', 0):.1f} %")
 
-    # --- SECCIÓN B: EVALUACIÓN ECONÓMICA CON GRADIENTE ---
+    # --- SECCIÓN B: EVALUACIÓN ECONÓMICA MODIFICADA ---
+    # He reordenado el arreglo de las columnas para que los números grandes quepan.
+    # En lugar de una fila de 5, usaremos una fila de 3 y otra de 2.
     st.markdown('<h3 class="section-header">💰 Evaluación Financiera (Base Anual)</h3>', unsafe_allow_html=True)
-    e1, e2, e3, e4, e5 = st.columns(5)
+    
+    # Fila 1: 3 columnas para métricas de costos y NPV
+    e1, e2, e3 = st.columns(3)
     e1.metric("Costo Real Prod.", f"$ {kpis['costo_prod']:.2f} /ton")
     e2.metric("Precio Venta Sug.", f"$ {kpis['precio_venta']:.2f} /ton")
     e3.metric("NPV (10 años)", f"$ {kpis['npv']:,.0f}")
+    
+    # Fila 2: 2 columnas para métricas de tiempo y retorno
+    e4, e5 = st.columns(2)
     e4.metric("Payback", f"{kpis['payback']:.1f} años" if kpis['payback']>0 else "No viable")
     e5.metric("ROI", f"{kpis['roi']:.1f} %")
 
     st.divider()
 
-    # --- SECCIÓN C: TABLAS DE BALANCE (Sin cambios en lógica) ---
+    # --- SECCIÓN C: TABLAS DE BALANCE ---
     col1, col2 = st.columns(2, gap="large")
     with col1:
         st.markdown('<h3 class="section-header">💧 Balance de Materia</h3>', unsafe_allow_html=True)
@@ -291,7 +343,7 @@ if st.session_state.get('simulacion_ejecutada'):
         
     st.divider()
 
-    # --- SECCIÓN D: VISUALIZACIÓN DE PLANOS (Sin cambios) ---
+    # --- SECCIÓN D: VISUALIZACIÓN DE PLANOS ISO ---
     st.markdown('<h3 class="section-header">📐 Diagramas de Ingeniería (Estándar ISO)</h3>', unsafe_allow_html=True)
     t1, t2 = st.tabs(["Diagrama de Bloques (BFD)", "Diagrama de Flujo de Proceso (PFD)"])
     
@@ -305,21 +357,25 @@ if st.session_state.get('simulacion_ejecutada'):
 
     st.divider()
 
-    # --- SECCIÓN E: TUTOR IA CON GRADIENTE ---
+    # --- SECCIÓN E: TUTOR IA (GEMINI 2.5 PRO) ---
     st.markdown('<h3 class="section-header">🧠 Tutor de Ingeniería Asistido por IA</h3>', unsafe_allow_html=True)
     modo_tutor = st.toggle("Habilitar Modo Tutor IA", value=False)
     
     if modo_tutor:
         st.markdown("Chatea con el asistente técnico sobre los resultados termodinámicos y financieros de tu simulación.")
+        
         if "messages" not in st.session_state:
             st.session_state.messages = []
+
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
+
         if prompt_usuario := st.chat_input("Ej: ¿Por qué el ROI es tan bajo si aumento la presión en V-100?"):
             st.session_state.messages.append({"role": "user", "content": prompt_usuario})
             with st.chat_message("user"):
                 st.markdown(prompt_usuario)
+
             contexto_simulacion = f"""
             Actúa como un tutor de ingeniería química senior. El alumno está simulando una planta de separación de etanol.
             Datos actuales de la simulación:
@@ -328,17 +384,23 @@ if st.session_state.get('simulacion_ejecutada'):
             - Pureza del producto: {kpis['prod'].get('Comp', 0):.1f} %
             - NPV: ${kpis['npv']:,.2f} USD
             - ROI: {kpis['roi']:.1f} %
+            
             Pregunta del alumno: {prompt_usuario}
+            
             Responde de manera directa, técnica y basándote en la termodinámica o ingeniería de costos.
             """
+
             try:
                 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                 modelo = genai.GenerativeModel("gemini-2.5-pro")
+                
                 with st.chat_message("assistant"):
                     with st.spinner("Analizando balances..."):
                         respuesta = modelo.generate_content(contexto_simulacion)
                         st.markdown(respuesta.text)
+                
                 st.session_state.messages.append({"role": "assistant", "content": respuesta.text})
+                
             except Exception as e:
                 st.error("Fallo de conexión con Gemini.")
                 st.code(str(e))
