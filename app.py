@@ -21,7 +21,6 @@ st.set_page_config(
 # ==========================================
 # 0.1 INYECCIÓN DE CSS PARA EL DISEÑO DE LA IMAGEN
 # ==========================================
-# Aquí está todo el diseño solicitado sobre el fondo oscuro.
 st.markdown("""
     <style>
     /* 1. ANIMACIÓN DE ENTRADA Y FUENTES GLOABLES */
@@ -54,9 +53,9 @@ st.markdown("""
         margin-bottom: 2rem;
     }
 
-    /* 3. ESTILO DE LAS TARJETAS DE MÉTRICAS (Efecto SaaS de Image 1) */
+    /* 3. ESTILO DE LAS TARJETAS DE MÉTRICAS */
     div[data-testid="stMetric"] {
-        background-color: #0a2a41; /* Slightly lighter navy para tarjetas */
+        background-color: #0a2a41; 
         border: 1px solid #1f2937;
         padding: 20px;
         border-radius: 12px;
@@ -66,25 +65,22 @@ st.markdown("""
     
     div[data-testid="stMetric"]:hover {
         transform: translateY(-5px);
-        border-color: #00b49c; /* Borde cian al pasar el cursor */
-        box-shadow: 0 10px 15px -3px rgba(0, 180, 156, 0.2); /* Brillo cian */
+        border-color: #00b49c; 
+        box-shadow: 0 10px 15px -3px rgba(0, 180, 156, 0.2); 
     }
 
-    /* Etiquetas de las métricas */
     div[data-testid="stMetricLabel"] > div > div > p {
-        color: #cbd5e1; /* Soft gray-blue para etiquetas */
+        color: #cbd5e1; 
         font-weight: 600;
         font-size: 1.1rem;
     }
 
-    /* Valores principales de las métricas */
     div[data-testid="stMetricValue"] > div {
-        color: #ffffff; /* Valor métrico blanco */
+        color: #ffffff; 
         font-weight: 700;
     }
 
-    /* 4. ESTILO DEL BOTÓN PRINCIPAL CON GRADIENTE */
-    /* Target específico del botón en la sidebar */
+    /* 4. ESTILO DEL BOTÓN PRINCIPAL */
     [data-testid="stSidebar"] button[kind="primary"] {
         background: linear-gradient(90deg, #00b49c, #86e819);
         color: #ffffff;
@@ -97,8 +93,7 @@ st.markdown("""
         transform: scale(1.02);
     }
 
-    /* 5. ESTILO GENERAL DE SUBENCABEZADOS (H2, H3) CON GRADIENTE */
-    /* Clases para subheaders en markdown */
+    /* 5. ESTILO GENERAL DE SUBENCABEZADOS */
     .section-header {
         background: linear-gradient(90deg, #00b49c, #86e819);
         -webkit-background-clip: text;
@@ -106,22 +101,18 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* 6. ESTILO DE LOS SLIDERS NATIVOS (Sincronizado con primaryColor) */
-    /* Streamlit lo maneja con primaryColor en config.toml, pero para asegurar: */
     div[data-baseweb="slider"] > div > div > div:nth-child(1) {
         background: linear-gradient(90deg, #00b49c, #86e819) !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# Reemplazo de títulos y subheaders por markdown con clases CSS para el gradiente
 st.markdown('<h1 class="title-text">⚙️ Simulación Interactiva: <span>Separación de Etanol</span></h1>', unsafe_allow_html=True)
 st.markdown('<p class="subtitle-text">Plataforma web para el análisis termodinámico, balances y evaluación económica del proceso.</p>', unsafe_allow_html=True)
 
 # ==========================================
 # 1. SIDEBAR: PARÁMETROS OPERATIVOS Y COSTOS
 # ==========================================
-# Usamos Markdown para subheaders en sidebar también
 st.sidebar.markdown('<h3 class="section-header">⚙️ Ejecución</h3>', unsafe_allow_html=True)
 ejecutar_btn = st.sidebar.button("▶ Ejecutar Simulación", type="primary", use_container_width=True)
 st.sidebar.divider()
@@ -130,11 +121,9 @@ st.sidebar.header("1. Parámetros de Operación")
 flujo_agua = st.sidebar.slider("Flujo de Agua en Mosto (kmol/h)", 10.0, 100.0, 43.2, step=0.1)
 flujo_etanol = st.sidebar.slider("Flujo de Etanol en Mosto (kmol/h)", 1.0, 20.0, 4.9, step=0.1)
 
-# Temperaturas en °C
 temp_mosto_c = st.sidebar.slider("Temp. Alimentación Mosto (°C)", 5.0, 50.0, 20.0, step=1.0)
 temp_w220_c = st.sidebar.slider("Temp. Salida W-220 (°C)", 70.0, 110.0, 95.0, step=1.0)
 
-# Presión en bar
 presion_v100_bar = st.sidebar.slider("Presión Separador V-100 (bar)", 0.5, 5.0, 1.0, step=0.1)
 
 st.sidebar.divider()
@@ -149,25 +138,16 @@ precio_agua = st.sidebar.slider("Precio Agua Enfriamiento ($/ton)", 0.1, 5.0, 0.
 # 2. FUNCIONES AUXILIARES (PDF VIEWER Y SVG)
 # ==========================================
 def mostrar_pdf(ruta_archivo):
-    """Función auxiliar para rasterizar un PDF a imagen usando PyMuPDF y asegurar su visualización"""
     try:
         if os.path.exists(ruta_archivo):
-            # Abrir el documento PDF
             doc = fitz.open(ruta_archivo)
-            
-            # Renderizar cada página del PDF como una imagen
             for page_num in range(len(doc)):
                 page = doc.load_page(page_num)
-                
-                # Matriz para aplicar zoom y mejorar la resolución
                 mat = fitz.Matrix(2, 2) 
                 pix = page.get_pixmap(matrix=mat)
-                
-                # Convertir los datos de la imagen a formato apto para Streamlit
                 img_bytes = pix.tobytes("png")
                 st.image(img_bytes, caption=f"Página {page_num + 1} - Renderizado desde Plant 3D", use_container_width=True)
             
-            # Mantener el botón de descarga nativo como contingencia
             with open(ruta_archivo, "rb") as f:
                 pdf_data = f.read()
                 
@@ -184,27 +164,32 @@ def mostrar_pdf(ruta_archivo):
         st.error(f"❌ Error interno al renderizar el documento: {e}")
 
 def render_diagrama_interactivo(df_mat):
-    """Genera e inyecta el SVG interactivo dinámico mapeado a los resultados de BioSTEAM, con cuadros de datos visibles"""
+    """Genera SVG interactivo con tooltips flotantes en CSS y enrutamiento corregido"""
     
-    # Función auxiliar para extraer datos y formatearlos en cuadros SVG
-    def obtener_datos_svg(x, y, stream_id, custom_label):
+    # Función para generar grupos interactivos (ruta + hover box)
+    def stream_interactivo(path_d, label_num, label_x, label_y, box_x, box_y, stream_id, custom_label):
         try:
             row = df_mat[df_mat['ID Corriente'] == stream_id].iloc[0]
             l1 = f"T: {row['Temp (°C)']} °C | P: {row['Presión (bar)']} bar"
             l2 = f"F: {row['Flujo (kg/h)']} kg/h | Et: {row['% Etanol']}"
         except:
-            # Fallback para corrientes intermedias no nombradas (ej. s1 generada por BioSTEAM)
             l1 = "T: -- °C | P: -- bar"
             l2 = "F: -- kg/h | Et: --"
             
         return f'''
-        <g class="stream-data-block">
-            <rect x="{x-5}" y="{y-12}" width="180" height="46" rx="4" fill="#0a2a41" fill-opacity="0.9" stroke="#1f2937" stroke-width="1.5" />
-            <text x="{x}" y="{y}" class="prop-text">
-                <tspan x="{x}" dy="0" fill="#86e819" font-weight="bold">{custom_label}</tspan>
-                <tspan x="{x}" dy="14">{l1}</tspan>
-                <tspan x="{x}" dy="14">{l2}</tspan>
-            </text>
+        <g class="interactive-group">
+            <path class="stream" d="{path_d}" marker-end="url(#arrow)"/>
+            <path class="hover-path" d="{path_d}" />
+            <text x="{label_x}" y="{label_y}" class="stream-label">{label_num}</text>
+            
+            <g class="stream-data-block">
+                <rect x="{box_x-5}" y="{box_y-12}" width="180" height="46" rx="4" class="tooltip-bg" />
+                <text x="{box_x}" y="{box_y}" class="prop-text">
+                    <tspan x="{box_x}" dy="0" fill="#86e819" font-weight="bold">{custom_label}</tspan>
+                    <tspan x="{box_x}" dy="14">{l1}</tspan>
+                    <tspan x="{box_x}" dy="14">{l2}</tspan>
+                </text>
+            </g>
         </g>
         '''
 
@@ -213,13 +198,28 @@ def render_diagrama_interactivo(df_mat):
     <head>
       <style>
         body {{ background-color: #0e1117; margin: 0; padding: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }}
-        svg {{ max-width: 100%; height: auto; }}
+        svg {{ max-width: 100%; height: auto; overflow: visible; }}
+        
+        /* Estilos base */
         .equipment {{ fill: #1f2937; stroke: #00b49c; stroke-width: 2; transition: all 0.2s ease; cursor: pointer; }}
         .equipment:hover {{ fill: #00b49c; stroke: #86e819; stroke-width: 3; }}
         .stream {{ fill: none; stroke: #86e819; stroke-width: 3; transition: stroke 0.2s ease, stroke-width 0.2s ease; cursor: pointer; }}
-        .stream:hover {{ stroke: #00b49c; stroke-width: 5; }}
+        
+        /* Efectos Hover Interactivo */
+        .interactive-group {{ cursor: pointer; }}
+        .interactive-group:hover .stream {{ stroke: #00b49c; stroke-width: 5; }}
+        
+        /* Hitbox gruesa invisible para facilitar el hover con el mouse */
+        .hover-path {{ fill: none; stroke: transparent; stroke-width: 25; }}
+        
+        /* Estilos del Tooltip Flotante */
+        .stream-data-block {{ opacity: 0; transition: opacity 0.2s ease-in-out; pointer-events: none; }}
+        .interactive-group:hover .stream-data-block {{ opacity: 1; }}
+        .tooltip-bg {{ fill: #0a2a41; fill-opacity: 0.95; stroke: #00b49c; stroke-width: 1.5; }}
+        
+        /* Textos */
         .label {{ font-size: 14px; fill: #cbd5e1; font-weight: bold; pointer-events: none; }}
-        .stream-label {{ font-size: 12px; fill: white; font-weight: bold; pointer-events: none; background: black; }}
+        .stream-label {{ font-size: 12px; fill: white; font-weight: bold; pointer-events: none; }}
         .prop-text {{ font-size: 11px; fill: #cbd5e1; font-family: monospace; pointer-events: none; }}
       </style>
     </head>
@@ -230,38 +230,6 @@ def render_diagrama_interactivo(df_mat):
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#86e819" />
           </marker>
         </defs>
-
-        <g id="streams">
-          <path class="stream" d="M 50 300 L 130 300" marker-end="url(#arrow)"/>
-          <text x="70" y="290" class="stream-label">1</text>
-
-          <path class="stream" d="M 170 300 L 250 300" marker-end="url(#arrow)"/>
-          <text x="200" y="290" class="stream-label">2</text>
-
-          <path class="stream" d="M 310 300 L 380 300" marker-end="url(#arrow)"/>
-          <text x="340" y="290" class="stream-label">3</text>
-
-          <path class="stream" d="M 440 300 L 510 300" marker-end="url(#arrow)"/>
-          <text x="470" y="290" class="stream-label">5</text>
-
-          <path class="stream" d="M 550 300 L 630 300" marker-end="url(#arrow)"/>
-          <text x="580" y="290" class="stream-label">6</text>
-
-          <path class="stream" d="M 660 210 L 660 150 L 730 150" marker-end="url(#arrow)"/>
-          <text x="670" y="170" class="stream-label">7</text>
-
-          <path class="stream" d="M 790 150 L 860 150" marker-end="url(#arrow)"/>
-          <text x="820" y="140" class="stream-label">9</text>
-
-          <path class="stream" d="M 660 390 L 660 440" marker-end="url(#arrow)"/>
-          <text x="670" y="420" class="stream-label">8</text>
-
-          <path class="stream" d="M 680 460 L 760 460 L 760 520 L 360 520 L 360 330" marker-end="url(#arrow)"/>
-          <text x="710" y="450" class="stream-label">10</text>
-
-          <path class="stream" d="M 660 480 L 660 520 L 580 520" marker-end="url(#arrow)"/>
-          <text x="610" y="510" class="stream-label">4</text>
-        </g>
 
         <g id="P-100">
           <circle cx="150" cy="300" r="20" class="equipment" />
@@ -303,16 +271,25 @@ def render_diagrama_interactivo(df_mat):
           <text x="645" y="495" class="label">P-200</text>
         </g>
 
-        {obtener_datos_svg(10, 330, "1-MOSTO", "1-MOSTO")}
-        {obtener_datos_svg(110, 230, "s1", "Descarga P-100")} 
-        {obtener_datos_svg(230, 360, "3-MOSTO-PRE", "3-MOSTO-PRE")}
-        {obtener_datos_svg(360, 230, "Mezcla", "Salida W-220")}
-        {obtener_datos_svg(490, 360, "Mezcla-Bifásica", "Entrada Flash")}
-        {obtener_datos_svg(690, 180, "Vapor Caliente", "Vapor Destilado")}
-        {obtener_datos_svg(730, 80, "Producto Final", "Producto Condensado")}
-        {obtener_datos_svg(690, 390, "Vinazas", "Líquido Vinazas")}
-        {obtener_datos_svg(460, 480, "Vinazas-Retorno", "Vinazas-Retorno")}
-        {obtener_datos_svg(500, 540, "DRENAJE", "Drenaje W-210")}
+        {stream_interactivo("M 50 300 L 130 300", "1", 70, 290, 20, 230, "1-MOSTO", "1-MOSTO")}
+        
+        {stream_interactivo("M 170 300 L 250 300", "2", 200, 290, 130, 230, "s1", "Descarga P-100")}
+        
+        {stream_interactivo("M 310 300 L 380 300", "3", 340, 290, 280, 230, "3-MOSTO-PRE", "3-MOSTO-PRE")}
+        
+        {stream_interactivo("M 440 300 L 510 300", "5", 470, 290, 400, 230, "Mezcla", "Salida W-220")}
+        
+        {stream_interactivo("M 550 300 L 630 300", "6", 580, 290, 510, 360, "Mezcla-Bifásica", "Entrada Flash")}
+        
+        {stream_interactivo("M 660 210 L 660 150 L 730 150", "7", 670, 170, 690, 100, "Vapor Caliente", "Vapor Destilado")}
+        
+        {stream_interactivo("M 790 150 L 860 150", "9", 820, 140, 750, 80, "Producto Final", "Producto Condensado")}
+        
+        {stream_interactivo("M 660 390 L 660 440", "8", 670, 420, 690, 390, "Vinazas", "Líquido Vinazas")}
+        
+        {stream_interactivo("M 680 460 L 760 460 L 760 520 L 280 520 L 280 330", "10", 710, 450, 500, 540, "Vinazas-Retorno", "Vinazas-Retorno")}
+        
+        {stream_interactivo("M 295 315 L 295 380 L 400 380", "4", 350, 370, 260, 410, "DRENAJE", "Drenaje W-210")}
 
       </svg>
     </body>
@@ -328,11 +305,9 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
     chemicals = tmo.Chemicals(["Water", "Ethanol"])
     bst.settings.set_thermo(chemicals)
 
-    # Corrientes (Conversión de °C a K, y bar a Pa)
     mosto = bst.Stream("1-MOSTO", Water=f_agua, Ethanol=f_etanol, units="kmol/h", T=t_mosto_c+273.15, P=101325)
     vinazas_retorno = bst.Stream("Vinazas-Retorno", Water=43.335, Ethanol=0, units="kmol/h", T=90+273.15, P=300000)
 
-    # Equipos
     P100 = bst.Pump("P-100", ins=mosto, P=4*101325)
     W210 = bst.HXprocess("W-210", ins=(P100-0, vinazas_retorno), outs=("3-MOSTO-PRE","DRENAJE"), phase0="l", phase1="l")
     W210.outs[0].T = 85+273.15
@@ -341,7 +316,6 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
     
     V1 = bst.Flash("V-1", ins=V100-0, outs=("Vapor Caliente","Vinazas"), P=p_v100_bar*100000, Q=0)
     
-    # Condensador (enfriamiento riguroso a 293 K por requerimiento de transferencia de masa)
     W310 = bst.HXutility("W-310", ins=V1-0, outs="Producto Final", T=293.0)
     
     P200 = bst.Pump("P-200", ins=V1-1, outs=vinazas_retorno, P=3*101325)
@@ -349,7 +323,6 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
     eth_sys = bst.System("planta_etanol", path=(P100,W210,W220,V100,V1,W310,P200))
     eth_sys.simulate()
 
-    # Procesamiento Materia
     datos_mat = []
     prod_data = {}
     for s in eth_sys.streams:
@@ -357,10 +330,10 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
             pct_etanol = (s.imass['Ethanol']/s.F_mass)*100
             if s.ID == "Producto Final":
                 prod_data = {
-                    "P": s.P / 100000, # bar
-                    "T": s.T - 273.15, # °C
-                    "Flujo": s.F_mass, # kg/h
-                    "Comp": pct_etanol # %
+                    "P": s.P / 100000, 
+                    "T": s.T - 273.15, 
+                    "Flujo": s.F_mass, 
+                    "Comp": pct_etanol 
                 }
             datos_mat.append({
                 "ID Corriente": s.ID, "Temp (°C)": f"{s.T-273.15:.2f}",
@@ -368,7 +341,6 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
                 "% Etanol": f"{pct_etanol:.1f}%", "% Agua": f"{(s.imass['Water']/s.F_mass)*100:.1f}%"
             })
     
-    # Procesamiento Energía y Utilidades
     datos_en = []
     calor_kw = enfriamiento_kw = potencia_kw = 0.0
     
@@ -391,29 +363,24 @@ def ejecutar_simulacion(f_agua, f_etanol, t_mosto_c, t_w220_c, p_v100_bar):
         if abs(q_kw) > 0.01: datos_en.append({"ID Equipo": u.ID, "Función": tipo_srv, "Energía Térmica (kW)": f"{q_kw:.2f}"})
         if p_kw > 0.01: datos_en.append({"ID Equipo": u.ID, "Función": "Motor Eléctrico", "Energía Eléctrica (kW)": f"{p_kw:.2f}"})
 
-    # --- EVALUACIÓN ECONÓMICA BÁSICA (Clase V) ---
     horas_año = 8000
     ton_to_kg = 1000
     
-    # OPEX Anual (Materia prima + Servicios)
     costo_mosto_anual = (mosto.F_mass / ton_to_kg) * precio_mosto * horas_año
-    costo_vapor_anual = (calor_kw * 3600 / 2257 / ton_to_kg) * precio_vapor * horas_año # Asumiendo dHvap = 2257 kJ/kg
-    costo_agua_anual = (enfriamiento_kw * 3600 / 41.8 / ton_to_kg) * precio_agua * horas_año # Asumiendo dT = 10C
+    costo_vapor_anual = (calor_kw * 3600 / 2257 / ton_to_kg) * precio_vapor * horas_año 
+    costo_agua_anual = (enfriamiento_kw * 3600 / 41.8 / ton_to_kg) * precio_agua * horas_año 
     costo_luz_anual = potencia_kw * precio_luz * horas_año
     opex_total = costo_mosto_anual + costo_vapor_anual + costo_agua_anual + costo_luz_anual
     
     costo_real_produccion = opex_total / (prod_data["Flujo"] * horas_año / ton_to_kg) if prod_data["Flujo"] > 0 else 0
     
-    # Ingresos y Métricas Financieras
     ingresos = (prod_data["Flujo"] / ton_to_kg) * precio_etanol * horas_año
     flujo_caja = ingresos - opex_total
     
-    # Asumimos un CAPEX estimado fijo de $1,500,000 USD para el cálculo de viabilidad
     capex_estimado = 1500000 
     roi = (flujo_caja / capex_estimado) * 100 if capex_estimado > 0 else 0
     payback = capex_estimado / flujo_caja if flujo_caja > 0 else 0
     
-    # NPV a 10 años con tasa de descuento del 10%
     tasa = 0.10
     npv = -capex_estimado + sum([flujo_caja / ((1 + tasa)**t) for t in range(1, 11)])
 
@@ -444,7 +411,6 @@ if ejecutar_btn:
 if st.session_state.get('simulacion_ejecutada'):
     kpis = st.session_state['kpis']
     
-    # --- SECCIÓN A: MÉTRICAS DEL PRODUCTO FINAL ---
     st.markdown('<h3 class="section-header">📦 Propiedades del Producto Final</h3>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Presión", f"{kpis['prod'].get('P', 0):.2f} bar")
@@ -452,7 +418,6 @@ if st.session_state.get('simulacion_ejecutada'):
     c3.metric("Flujo Másico", f"{kpis['prod'].get('Flujo', 0):.1f} kg/h")
     c4.metric("Composición Etanol", f"{kpis['prod'].get('Comp', 0):.1f} %")
 
-    # --- SECCIÓN B: EVALUACIÓN ECONÓMICA MODIFICADA ---
     st.markdown('<h3 class="section-header">💰 Evaluación Financiera (Base Anual)</h3>', unsafe_allow_html=True)
     
     e1, e2, e3 = st.columns(3)
@@ -466,7 +431,6 @@ if st.session_state.get('simulacion_ejecutada'):
 
     st.divider()
 
-    # --- SECCIÓN C: TABLAS DE BALANCE ---
     col1, col2 = st.columns(2, gap="large")
     with col1:
         st.markdown('<h3 class="section-header">💧 Balance de Materia</h3>', unsafe_allow_html=True)
@@ -477,7 +441,6 @@ if st.session_state.get('simulacion_ejecutada'):
         
     st.divider()
 
-    # --- SECCIÓN D: VISUALIZACIÓN DE PLANOS ISO ---
     st.markdown('<h3 class="section-header">📐 Diagramas de Ingeniería (Estándar ISO)</h3>', unsafe_allow_html=True)
     
     t1, t2, t3 = st.tabs(["Diagrama de Bloques (BFD)", "Diagrama de Flujo de Proceso (PFD)", "PFD Interactivo en Vivo (SVG)"])
@@ -491,12 +454,11 @@ if st.session_state.get('simulacion_ejecutada'):
         mostrar_pdf("diagrama_pfd.pdf")
         
     with t3:
-        st.info("Visualización paramétrica en tiempo real. Los cuadros reflejan los valores actuales del modelo termodinámico.")
+        st.info("Visualización paramétrica en tiempo real. Pase el cursor sobre las líneas de corriente para desplegar el cuadro de propiedades termodinámicas.")
         render_diagrama_interactivo(st.session_state['df_mat'])
 
     st.divider()
 
-    # --- SECCIÓN E: TUTOR IA (GEMINI 2.5 PRO) ---
     st.markdown('<h3 class="section-header">🧠 Tutor de Ingeniería Asistido por IA</h3>', unsafe_allow_html=True)
     modo_tutor = st.toggle("Habilitar Modo Tutor IA", value=False)
     
@@ -544,5 +506,4 @@ if st.session_state.get('simulacion_ejecutada'):
                 st.error("Fallo de conexión con Gemini.")
                 st.code(str(e))
 else:
-    # Mensaje de espera en estado inicial
     st.info("👈 Ajusta los parámetros operativos y de costos en el panel lateral, luego presiona **Ejecutar Simulación** para visualizar los balances y la evaluación económica.")
