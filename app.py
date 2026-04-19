@@ -21,6 +21,7 @@ st.set_page_config(
 # ==========================================
 # 0.1 INYECCIÓN DE CSS PARA EL DISEÑO DE LA IMAGEN
 # ==========================================
+# Aquí está todo el diseño solicitado sobre el fondo oscuro.
 st.markdown("""
     <style>
     /* 1. ANIMACIÓN DE ENTRADA Y FUENTES GLOABLES */
@@ -183,17 +184,29 @@ def mostrar_pdf(ruta_archivo):
         st.error(f"❌ Error interno al renderizar el documento: {e}")
 
 def render_diagrama_interactivo(df_mat):
-    """Genera e inyecta el SVG interactivo dinámico mapeado a los resultados de BioSTEAM"""
+    """Genera e inyecta el SVG interactivo dinámico mapeado a los resultados de BioSTEAM, con cuadros de datos visibles"""
     
-    # Diccionario de búsqueda rápida de las corrientes
-    datos_corrientes = {}
-    for _, row in df_mat.iterrows():
-        id_c = str(row['ID Corriente'])
-        info = f"T: {row['Temp (°C)']} °C | P: {row['Presión (bar)']} bar | Flujo: {row['Flujo (kg/h)']} kg/h\nComposición -> Etanol: {row['% Etanol']} / Agua: {row['% Agua']}"
-        datos_corrientes[id_c] = info
-
-    def safe_get(key_id, default="Datos no disponibles para esta corriente en la simulación actual"):
-        return datos_corrientes.get(key_id, default)
+    # Función auxiliar para extraer datos y formatearlos en cuadros SVG
+    def obtener_datos_svg(x, y, stream_id, custom_label):
+        try:
+            row = df_mat[df_mat['ID Corriente'] == stream_id].iloc[0]
+            l1 = f"T: {row['Temp (°C)']} °C | P: {row['Presión (bar)']} bar"
+            l2 = f"F: {row['Flujo (kg/h)']} kg/h | Et: {row['% Etanol']}"
+        except:
+            # Fallback para corrientes intermedias no nombradas (ej. s1 generada por BioSTEAM)
+            l1 = "T: -- °C | P: -- bar"
+            l2 = "F: -- kg/h | Et: --"
+            
+        return f'''
+        <g class="stream-data-block">
+            <rect x="{x-5}" y="{y-12}" width="180" height="46" rx="4" fill="#0a2a41" fill-opacity="0.9" stroke="#1f2937" stroke-width="1.5" />
+            <text x="{x}" y="{y}" class="prop-text">
+                <tspan x="{x}" dy="0" fill="#86e819" font-weight="bold">{custom_label}</tspan>
+                <tspan x="{x}" dy="14">{l1}</tspan>
+                <tspan x="{x}" dy="14">{l2}</tspan>
+            </text>
+        </g>
+        '''
 
     svg_code = f"""
     <html>
@@ -207,6 +220,7 @@ def render_diagrama_interactivo(df_mat):
         .stream:hover {{ stroke: #00b49c; stroke-width: 5; }}
         .label {{ font-size: 14px; fill: #cbd5e1; font-weight: bold; pointer-events: none; }}
         .stream-label {{ font-size: 12px; fill: white; font-weight: bold; pointer-events: none; background: black; }}
+        .prop-text {{ font-size: 11px; fill: #cbd5e1; font-family: monospace; pointer-events: none; }}
       </style>
     </head>
     <body>
@@ -218,64 +232,34 @@ def render_diagrama_interactivo(df_mat):
         </defs>
 
         <g id="streams">
-          <g class="stream-group">
-              <path class="stream" d="M 50 300 L 130 300" marker-end="url(#arrow)"/>
-              <title>Corriente 1 (Alimentación Mosto)&#10;{safe_get('1-MOSTO')}</title>
-          </g>
+          <path class="stream" d="M 50 300 L 130 300" marker-end="url(#arrow)"/>
           <text x="70" y="290" class="stream-label">1</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 170 300 L 250 300" marker-end="url(#arrow)"/>
-              <title>Corriente 2 (Descarga Bomba)&#10;{safe_get('s2', 'Revisar ID salida de bomba en simulación')}</title>
-          </g>
+          <path class="stream" d="M 170 300 L 250 300" marker-end="url(#arrow)"/>
           <text x="200" y="290" class="stream-label">2</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 310 300 L 380 300" marker-end="url(#arrow)"/>
-              <title>Corriente 3 (Mosto Precalentado)&#10;{safe_get('3-MOSTO-PRE')}</title>
-          </g>
+          <path class="stream" d="M 310 300 L 380 300" marker-end="url(#arrow)"/>
           <text x="340" y="290" class="stream-label">3</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 440 300 L 510 300" marker-end="url(#arrow)"/>
-              <title>Corriente 5 (Mosto Caliente)&#10;{safe_get('Mezcla')}</title>
-          </g>
+          <path class="stream" d="M 440 300 L 510 300" marker-end="url(#arrow)"/>
           <text x="470" y="290" class="stream-label">5</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 550 300 L 630 300" marker-end="url(#arrow)"/>
-              <title>Corriente 6 (Mezcla a Flash)&#10;{safe_get('Mezcla-Bifásica')}</title>
-          </g>
+          <path class="stream" d="M 550 300 L 630 300" marker-end="url(#arrow)"/>
           <text x="580" y="290" class="stream-label">6</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 660 210 L 660 150 L 730 150" marker-end="url(#arrow)"/>
-              <title>Corriente 7 (Vapor Destilado)&#10;{safe_get('Vapor Caliente')}</title>
-          </g>
+          <path class="stream" d="M 660 210 L 660 150 L 730 150" marker-end="url(#arrow)"/>
           <text x="670" y="170" class="stream-label">7</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 790 150 L 860 150" marker-end="url(#arrow)"/>
-              <title>Corriente 9 (Producto Condensado)&#10;{safe_get('Producto Final')}</title>
-          </g>
+          <path class="stream" d="M 790 150 L 860 150" marker-end="url(#arrow)"/>
           <text x="820" y="140" class="stream-label">9</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 660 390 L 660 440" marker-end="url(#arrow)"/>
-              <title>Corriente 8 (Vinazas de Flash)&#10;{safe_get('Vinazas')}</title>
-          </g>
+          <path class="stream" d="M 660 390 L 660 440" marker-end="url(#arrow)"/>
           <text x="670" y="420" class="stream-label">8</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 680 460 L 760 460 L 760 520 L 360 520 L 360 330" marker-end="url(#arrow)"/>
-              <title>Corriente 10 (Vinazas Retorno)&#10;{safe_get('Vinazas-Retorno')}</title>
-          </g>
+          <path class="stream" d="M 680 460 L 760 460 L 760 520 L 360 520 L 360 330" marker-end="url(#arrow)"/>
           <text x="710" y="450" class="stream-label">10</text>
 
-          <g class="stream-group">
-              <path class="stream" d="M 660 480 L 660 520 L 580 520" marker-end="url(#arrow)"/>
-              <title>Corriente 4 (Drenaje de Enfriamiento)&#10;{safe_get('DRENAJE')}</title>
-          </g>
+          <path class="stream" d="M 660 480 L 660 520 L 580 520" marker-end="url(#arrow)"/>
           <text x="610" y="510" class="stream-label">4</text>
         </g>
 
@@ -283,48 +267,53 @@ def render_diagrama_interactivo(df_mat):
           <circle cx="150" cy="300" r="20" class="equipment" />
           <polygon points="140,290 140,310 160,300" fill="#0e1117" />
           <text x="135" y="335" class="label">P-100</text>
-          <title>Bomba Centrífuga P-100</title>
         </g>
 
         <g id="W-210">
           <circle cx="280" cy="300" r="30" class="equipment" />
           <path d="M 250 300 L 265 285 L 280 315 L 295 285 L 310 300" stroke="#00b49c" stroke-width="2" fill="none" />
           <text x="260" y="345" class="label">W-210</text>
-          <title>Intercambiador de Calor Recuperativo W-210</title>
         </g>
 
         <g id="W-220">
           <circle cx="410" cy="300" r="30" class="equipment" />
           <path d="M 380 300 L 395 285 L 410 315 L 425 285 L 440 300" stroke="#00b49c" stroke-width="2" fill="none" />
           <text x="390" y="345" class="label">W-220</text>
-          <title>Intercambiador de Calor Utilidad W-220</title>
         </g>
 
         <g id="CV-411">
           <polygon points="510,285 510,315 550,285 550,315" class="equipment" />
           <text x="495" y="335" class="label">400-CV-411</text>
-          <title>Válvula Isentálpica 400-CV-411 (V-100)</title>
         </g>
 
         <g id="V-001">
           <rect x="630" y="210" width="60" height="180" rx="30" class="equipment" />
           <text x="640" y="250" class="label">V-001</text>
-          <title>Tanque Flash V-001 (V-1)</title>
         </g>
 
         <g id="W-310">
           <circle cx="760" cy="150" r="30" class="equipment" />
           <path d="M 730 150 L 745 135 L 760 165 L 775 135 L 790 150" stroke="#00b49c" stroke-width="2" fill="none" />
           <text x="740" y="195" class="label">W-310</text>
-          <title>Condensador W-310</title>
         </g>
 
         <g id="P-200">
           <circle cx="660" cy="460" r="20" class="equipment" />
           <polygon points="650,450 650,470 670,460" fill="#0e1117" />
           <text x="645" y="495" class="label">P-200</text>
-          <title>Bomba Centrífuga P-200</title>
         </g>
+
+        {obtener_datos_svg(10, 330, "1-MOSTO", "1-MOSTO")}
+        {obtener_datos_svg(110, 230, "s1", "Descarga P-100")} 
+        {obtener_datos_svg(230, 360, "3-MOSTO-PRE", "3-MOSTO-PRE")}
+        {obtener_datos_svg(360, 230, "Mezcla", "Salida W-220")}
+        {obtener_datos_svg(490, 360, "Mezcla-Bifásica", "Entrada Flash")}
+        {obtener_datos_svg(690, 180, "Vapor Caliente", "Vapor Destilado")}
+        {obtener_datos_svg(730, 80, "Producto Final", "Producto Condensado")}
+        {obtener_datos_svg(690, 390, "Vinazas", "Líquido Vinazas")}
+        {obtener_datos_svg(460, 480, "Vinazas-Retorno", "Vinazas-Retorno")}
+        {obtener_datos_svg(500, 540, "DRENAJE", "Drenaje W-210")}
+
       </svg>
     </body>
     </html>
@@ -491,7 +480,6 @@ if st.session_state.get('simulacion_ejecutada'):
     # --- SECCIÓN D: VISUALIZACIÓN DE PLANOS ISO ---
     st.markdown('<h3 class="section-header">📐 Diagramas de Ingeniería (Estándar ISO)</h3>', unsafe_allow_html=True)
     
-    # SE AÑADE LA PESTAÑA DEL PFD INTERACTIVO
     t1, t2, t3 = st.tabs(["Diagrama de Bloques (BFD)", "Diagrama de Flujo de Proceso (PFD)", "PFD Interactivo en Vivo (SVG)"])
     
     with t1:
@@ -503,7 +491,7 @@ if st.session_state.get('simulacion_ejecutada'):
         mostrar_pdf("diagrama_pfd.pdf")
         
     with t3:
-        st.info("Visualización paramétrica interactiva sobre esquemático SVG. Posicione el cursor sobre los equipos o corrientes.")
+        st.info("Visualización paramétrica en tiempo real. Los cuadros reflejan los valores actuales del modelo termodinámico.")
         render_diagrama_interactivo(st.session_state['df_mat'])
 
     st.divider()
