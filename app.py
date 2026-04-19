@@ -289,7 +289,7 @@ def render_diagrama_interactivo(df_mat):
         
         {stream_interactivo("M 680 460 L 760 460 L 760 520 L 280 520 L 280 330", "10", 710, 450, 500, 540, "Vinazas-Retorno", "Vinazas-Retorno")}
         
-        {stream_interactivo("M 295 315 L 295 380 L 400 380", "4", 350, 370, 260, 410, "DRENAJE", "Drenaje W-210")}
+        {stream_interactivo("M 280 270 L 280 240 L 380 240", "4", 330, 230, 300, 180, "DRENAJE", "Drenaje W-210")}
 
       </svg>
     </body>
