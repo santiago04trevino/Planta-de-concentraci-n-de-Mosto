@@ -1,0 +1,7 @@
+[theme]
+base="dark"
+backgroundColor="#021a2f" # Azul marino oscuro de la Image 5
+secondaryBackgroundColor="#0a2a41" # Un tono ligeramente más claro para tarjetas y sidebar
+textColor="#e2e8f0" # Texto gris claro-azulado
+primaryColor="#00b49c" # Color cian de la base del gradiente
+font="sans serif"
