@@ -7,6 +7,7 @@ import base64
 import math
 import google.generativeai as genai
 import fitz  # PyMuPDF: Necesario para renderizar PDFs evadiendo el bloqueo del navegador
+import streamlit.components.v1 as components # <-- IMPORTACIÓN AÑADIDA PARA RENDERIZAR HTML/SVG
 
 # ==========================================
 # 0. CONFIGURACIÓN DE LA PÁGINA
@@ -20,7 +21,6 @@ st.set_page_config(
 # ==========================================
 # 0.1 INYECCIÓN DE CSS PARA EL DISEÑO DE LA IMAGEN
 # ==========================================
-# Aquí está todo el diseño solicitado sobre el fondo oscuro.
 st.markdown("""
     <style>
     /* 1. ANIMACIÓN DE ENTRADA Y FUENTES GLOABLES */
@@ -145,7 +145,7 @@ precio_vapor = st.sidebar.slider("Precio Vapor ($/ton)", 10.0, 50.0, 20.0)
 precio_agua = st.sidebar.slider("Precio Agua Enfriamiento ($/ton)", 0.1, 5.0, 0.5)
 
 # ==========================================
-# 2. FUNCIONES AUXILIARES (PDF VIEWER)
+# 2. FUNCIONES AUXILIARES (PDF VIEWER Y SVG)
 # ==========================================
 def mostrar_pdf(ruta_archivo):
     """Función auxiliar para rasterizar un PDF a imagen usando PyMuPDF y asegurar su visualización"""
@@ -181,6 +181,155 @@ def mostrar_pdf(ruta_archivo):
             st.warning(f"⚠️ No se encontró el archivo: `{ruta_archivo}`. Asegúrate de subirlo a la raíz de tu repositorio.")
     except Exception as e:
         st.error(f"❌ Error interno al renderizar el documento: {e}")
+
+def render_diagrama_interactivo(df_mat):
+    """Genera e inyecta el SVG interactivo dinámico mapeado a los resultados de BioSTEAM"""
+    
+    # Diccionario de búsqueda rápida de las corrientes
+    datos_corrientes = {}
+    for _, row in df_mat.iterrows():
+        id_c = str(row['ID Corriente'])
+        info = f"T: {row['Temp (°C)']} °C | P: {row['Presión (bar)']} bar | Flujo: {row['Flujo (kg/h)']} kg/h\nComposición -> Etanol: {row['% Etanol']} / Agua: {row['% Agua']}"
+        datos_corrientes[id_c] = info
+
+    def safe_get(key_id, default="Datos no disponibles para esta corriente en la simulación actual"):
+        return datos_corrientes.get(key_id, default)
+
+    svg_code = f"""
+    <html>
+    <head>
+      <style>
+        body {{ background-color: #0e1117; margin: 0; padding: 0; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }}
+        svg {{ max-width: 100%; height: auto; }}
+        .equipment {{ fill: #1f2937; stroke: #00b49c; stroke-width: 2; transition: all 0.2s ease; cursor: pointer; }}
+        .equipment:hover {{ fill: #00b49c; stroke: #86e819; stroke-width: 3; }}
+        .stream {{ fill: none; stroke: #86e819; stroke-width: 3; transition: stroke 0.2s ease, stroke-width 0.2s ease; cursor: pointer; }}
+        .stream:hover {{ stroke: #00b49c; stroke-width: 5; }}
+        .label {{ font-size: 14px; fill: #cbd5e1; font-weight: bold; pointer-events: none; }}
+        .stream-label {{ font-size: 12px; fill: white; font-weight: bold; pointer-events: none; background: black; }}
+      </style>
+    </head>
+    <body>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="100%" height="100%">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#86e819" />
+          </marker>
+        </defs>
+
+        <g id="streams">
+          <g class="stream-group">
+              <path class="stream" d="M 50 300 L 130 300" marker-end="url(#arrow)"/>
+              <title>Corriente 1 (Alimentación Mosto)&#10;{safe_get('1-MOSTO')}</title>
+          </g>
+          <text x="70" y="290" class="stream-label">1</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 170 300 L 250 300" marker-end="url(#arrow)"/>
+              <title>Corriente 2 (Descarga Bomba)&#10;{safe_get('s2', 'Revisar ID salida de bomba en simulación')}</title>
+          </g>
+          <text x="200" y="290" class="stream-label">2</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 310 300 L 380 300" marker-end="url(#arrow)"/>
+              <title>Corriente 3 (Mosto Precalentado)&#10;{safe_get('3-MOSTO-PRE')}</title>
+          </g>
+          <text x="340" y="290" class="stream-label">3</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 440 300 L 510 300" marker-end="url(#arrow)"/>
+              <title>Corriente 5 (Mosto Caliente)&#10;{safe_get('Mezcla')}</title>
+          </g>
+          <text x="470" y="290" class="stream-label">5</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 550 300 L 630 300" marker-end="url(#arrow)"/>
+              <title>Corriente 6 (Mezcla a Flash)&#10;{safe_get('Mezcla-Bifásica')}</title>
+          </g>
+          <text x="580" y="290" class="stream-label">6</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 660 210 L 660 150 L 730 150" marker-end="url(#arrow)"/>
+              <title>Corriente 7 (Vapor Destilado)&#10;{safe_get('Vapor Caliente')}</title>
+          </g>
+          <text x="670" y="170" class="stream-label">7</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 790 150 L 860 150" marker-end="url(#arrow)"/>
+              <title>Corriente 9 (Producto Condensado)&#10;{safe_get('Producto Final')}</title>
+          </g>
+          <text x="820" y="140" class="stream-label">9</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 660 390 L 660 440" marker-end="url(#arrow)"/>
+              <title>Corriente 8 (Vinazas de Flash)&#10;{safe_get('Vinazas')}</title>
+          </g>
+          <text x="670" y="420" class="stream-label">8</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 680 460 L 760 460 L 760 520 L 360 520 L 360 330" marker-end="url(#arrow)"/>
+              <title>Corriente 10 (Vinazas Retorno)&#10;{safe_get('Vinazas-Retorno')}</title>
+          </g>
+          <text x="710" y="450" class="stream-label">10</text>
+
+          <g class="stream-group">
+              <path class="stream" d="M 660 480 L 660 520 L 580 520" marker-end="url(#arrow)"/>
+              <title>Corriente 4 (Drenaje de Enfriamiento)&#10;{safe_get('DRENAJE')}</title>
+          </g>
+          <text x="610" y="510" class="stream-label">4</text>
+        </g>
+
+        <g id="P-100">
+          <circle cx="150" cy="300" r="20" class="equipment" />
+          <polygon points="140,290 140,310 160,300" fill="#0e1117" />
+          <text x="135" y="335" class="label">P-100</text>
+          <title>Bomba Centrífuga P-100</title>
+        </g>
+
+        <g id="W-210">
+          <circle cx="280" cy="300" r="30" class="equipment" />
+          <path d="M 250 300 L 265 285 L 280 315 L 295 285 L 310 300" stroke="#00b49c" stroke-width="2" fill="none" />
+          <text x="260" y="345" class="label">W-210</text>
+          <title>Intercambiador de Calor Recuperativo W-210</title>
+        </g>
+
+        <g id="W-220">
+          <circle cx="410" cy="300" r="30" class="equipment" />
+          <path d="M 380 300 L 395 285 L 410 315 L 425 285 L 440 300" stroke="#00b49c" stroke-width="2" fill="none" />
+          <text x="390" y="345" class="label">W-220</text>
+          <title>Intercambiador de Calor Utilidad W-220</title>
+        </g>
+
+        <g id="CV-411">
+          <polygon points="510,285 510,315 550,285 550,315" class="equipment" />
+          <text x="495" y="335" class="label">400-CV-411</text>
+          <title>Válvula Isentálpica 400-CV-411 (V-100)</title>
+        </g>
+
+        <g id="V-001">
+          <rect x="630" y="210" width="60" height="180" rx="30" class="equipment" />
+          <text x="640" y="250" class="label">V-001</text>
+          <title>Tanque Flash V-001 (V-1)</title>
+        </g>
+
+        <g id="W-310">
+          <circle cx="760" cy="150" r="30" class="equipment" />
+          <path d="M 730 150 L 745 135 L 760 165 L 775 135 L 790 150" stroke="#00b49c" stroke-width="2" fill="none" />
+          <text x="740" y="195" class="label">W-310</text>
+          <title>Condensador W-310</title>
+        </g>
+
+        <g id="P-200">
+          <circle cx="660" cy="460" r="20" class="equipment" />
+          <polygon points="650,450 650,470 670,460" fill="#0e1117" />
+          <text x="645" y="495" class="label">P-200</text>
+          <title>Bomba Centrífuga P-200</title>
+        </g>
+      </svg>
+    </body>
+    </html>
+    """
+    components.html(svg_code, height=650)
 
 # ==========================================
 # 3. MOTOR DE SIMULACIÓN Y ECONOMÍA
@@ -315,17 +464,13 @@ if st.session_state.get('simulacion_ejecutada'):
     c4.metric("Composición Etanol", f"{kpis['prod'].get('Comp', 0):.1f} %")
 
     # --- SECCIÓN B: EVALUACIÓN ECONÓMICA MODIFICADA ---
-    # He reordenado el arreglo de las columnas para que los números grandes quepan.
-    # En lugar de una fila de 5, usaremos una fila de 3 y otra de 2.
     st.markdown('<h3 class="section-header">💰 Evaluación Financiera (Base Anual)</h3>', unsafe_allow_html=True)
     
-    # Fila 1: 3 columnas para métricas de costos y NPV
     e1, e2, e3 = st.columns(3)
     e1.metric("Costo Real Prod.", f"$ {kpis['costo_prod']:.2f} /ton")
     e2.metric("Precio Venta Sug.", f"$ {kpis['precio_venta']:.2f} /ton")
     e3.metric("NPV (10 años)", f"$ {kpis['npv']:,.0f}")
     
-    # Fila 2: 2 columnas para métricas de tiempo y retorno
     e4, e5 = st.columns(2)
     e4.metric("Payback", f"{kpis['payback']:.1f} años" if kpis['payback']>0 else "No viable")
     e5.metric("ROI", f"{kpis['roi']:.1f} %")
@@ -345,7 +490,9 @@ if st.session_state.get('simulacion_ejecutada'):
 
     # --- SECCIÓN D: VISUALIZACIÓN DE PLANOS ISO ---
     st.markdown('<h3 class="section-header">📐 Diagramas de Ingeniería (Estándar ISO)</h3>', unsafe_allow_html=True)
-    t1, t2 = st.tabs(["Diagrama de Bloques (BFD)", "Diagrama de Flujo de Proceso (PFD)"])
+    
+    # SE AÑADE LA PESTAÑA DEL PFD INTERACTIVO
+    t1, t2, t3 = st.tabs(["Diagrama de Bloques (BFD)", "Diagrama de Flujo de Proceso (PFD)", "PFD Interactivo en Vivo (SVG)"])
     
     with t1:
         st.info("Renderizando BFD desde AutoCAD Plant 3D")
@@ -354,6 +501,10 @@ if st.session_state.get('simulacion_ejecutada'):
     with t2:
         st.info("Renderizando PFD desde AutoCAD Plant 3D")
         mostrar_pdf("diagrama_pfd.pdf")
+        
+    with t3:
+        st.info("Visualización paramétrica interactiva sobre esquemático SVG. Posicione el cursor sobre los equipos o corrientes.")
+        render_diagrama_interactivo(st.session_state['df_mat'])
 
     st.divider()
 
